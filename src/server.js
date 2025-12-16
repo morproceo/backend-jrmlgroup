@@ -38,6 +38,71 @@ app.use('/api/auth', authRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/admin', adminRoutes);
 
+// Signatures endpoint - receives signed documents from driver portal
+app.post('/api/signatures', async (req, res) => {
+  console.log('=== SIGNATURE SUBMISSION RECEIVED ===');
+
+  try {
+    const { documentId, documentName, driverId, driverEmail, signatureData, signatureType, signedAt } = req.body;
+
+    console.log('Document:', documentName);
+    console.log('Driver:', driverEmail);
+    console.log('Signature Type:', signatureType);
+    console.log('Signed At:', signedAt);
+
+    // Validate required fields
+    if (!documentId || !driverEmail || !signatureData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: documentId, driverEmail, and signatureData are required'
+      });
+    }
+
+    // Send to GoHighLevel webhook for tracking
+    const ghlService = require('./services/goHighLevel');
+
+    try {
+      await ghlService.sendToWebhook({
+        firstName: 'Driver',
+        lastName: 'Signature',
+        email: driverEmail,
+        applicationId: `SIG-${documentId}-${Date.now()}`,
+        status: 'Document Signed',
+        position: 'OO',
+        submittedAt: signedAt,
+        // Custom fields for signature tracking
+        electronicSignature: signatureType === 'typed' ? signatureData : 'Canvas Signature',
+        employer1Name: documentName, // Using this field to store document name
+        employer1ReasonLeaving: `Signed via ${signatureType} signature` // Store signature method
+      });
+      console.log('Signature sent to GoHighLevel');
+    } catch (ghlError) {
+      console.error('GoHighLevel webhook error:', ghlError.message);
+      // Don't fail the request if GHL fails
+    }
+
+    console.log('=== SIGNATURE PROCESSED SUCCESSFULLY ===');
+
+    res.json({
+      success: true,
+      message: 'Document signed successfully',
+      data: {
+        documentId,
+        documentName,
+        signedAt,
+        confirmationNumber: `JRML-SIG-${Date.now()}`
+      }
+    });
+
+  } catch (error) {
+    console.error('Signature processing error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process signature'
+    });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
