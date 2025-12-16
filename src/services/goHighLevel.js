@@ -93,12 +93,19 @@ async function sendToWebhook(application) {
  * Build webhook payload matching your GHL custom field keys
  */
 function buildWebhookPayload(application) {
+  // Format phone to E.164 format for GHL (strip formatting, add +1)
+  const formatPhone = (phone) => {
+    if (!phone) return '';
+    const digits = phone.replace(/\D/g, '');
+    return digits.length === 10 ? `+1${digits}` : `+${digits}`;
+  };
+
   return {
     // Standard contact fields
     firstName: application.firstName,
     lastName: application.lastName,
     email: application.email,
-    phone: application.phone,
+    phone: formatPhone(application.phone),
 
     // Application info
     application_id: application.applicationId,
